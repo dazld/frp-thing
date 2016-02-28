@@ -1,3 +1,5 @@
+import Bacon from 'baconjs';
+
 var $ = document.querySelector.bind(document);
 
 function getDimensions() {

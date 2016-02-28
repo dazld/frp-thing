@@ -2,7 +2,8 @@
 
 const gulp = require('gulp');
 const plumber = require('gulp-plumber');
-const watch = require('gulp-watch');
+// const watch = require('gulp-watch');
+const gutil = require('gulp-util');
 const gulpif = require('gulp-if');
 const debug = require('gulp-debug');
 const size = require('gulp-size');
@@ -15,13 +16,23 @@ const liveReload = require('gulp-livereload');
 const del = require('del');
 const path = require('path');
 const join = path.join,
-        resolve = path.resolve;
+    resolve = path.resolve;
 
 const sass = require('gulp-sass');
 const csso = require('gulp-csso');
 const cmq = require('gulp-combine-mq');
 const autoprefixer = require('gulp-autoprefixer');
 const base64 = require('gulp-base64');
+const sourcemaps = require('gulp-sourcemaps');
+
+
+// js builds
+const watchify = require('watchify');
+const browserify = require('browserify');
+const uglify = require('gulp-uglify');
+const envify = require('envify/custom');
+const buffer = require('vinyl-buffer');
+const source = require('vinyl-source-stream');
 
 const BROWSER_CONFIG = ['> 1%', 'IE 9'];
 const LIVERELOAD_PORT = process.env.LIVERELOAD_PORT || 35729;
@@ -34,17 +45,86 @@ const ASSETS_SASS_MAIN = join(ASSETS_SASS, 'main.scss');
 const ASSETS_HTML = join(ASSETS_DIR, 'html');
 const ASSETS_IMG = join(ASSETS_DIR, 'img');
 const ASSETS_FONTS = join(ASSETS_DIR, 'fonts');
+const ASSETS_JS = join(ASSETS_DIR,'js');
+const ASSETS_JS_MAIN = join(ASSETS_JS, 'index.js');
 
 const STATIC_DIR = './static';
 const STATIC_CSS = join(STATIC_DIR, 'css');
 const STATIC_IMG = join(STATIC_DIR, 'img');
 const STATIC_FONTS = join(STATIC_DIR, 'fonts');
+const STATIC_JS = join(STATIC_DIR, 'js');
 
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
 function mountFolder(server, dir) {
     return server.static(resolve(dir));
 }
+
+const baseBrowserifyOptions = {
+    // application entry points - if not using index, add here!
+    entries: ASSETS_JS_MAIN,
+    debug: !IS_PRODUCTION,
+    cache: {},
+    packageCache: {},
+    plugin: [],
+    // transform: [envify()]
+};
+
+if (!IS_PRODUCTION) {
+    baseBrowserifyOptions.plugin = [watchify];
+}
+
+const compiler = browserify(baseBrowserifyOptions);
+
+compiler.transform('babelify', {
+    plugins: ['transform-object-rest-spread'],
+    presets: ['es2015', 'react']
+});
+compiler.transform(envify({
+    global: true,
+    NODE_ENV: process.env.NODE_ENV,
+    _: 'purge'
+}),{
+    global: true
+});
+
+
+compiler.on('log', gutil.log);
+compiler.on('error', gutil.log);
+
+compiler.on('update', function() {
+    console.log.apply(console, ['Updated: '].concat([].slice.call(arguments)));
+    bundle();
+});
+
+function bundle () {
+    return compiler.bundle()
+        // handle errors
+        .on('error', notify.onError('Error: <%= error.message %>'))
+        .on('error', function(err) {
+            gutil.log(gutil.colors.red(`Error (${err.plugin}) - ${err.message}`));
+            this.emit('end');
+        })
+        .pipe(source('bundle.js'))
+        .pipe(buffer())
+        .pipe(gulpif(IS_PRODUCTION, uglify()))
+        .pipe(size())
+        .pipe(gulp.dest(STATIC_JS))
+        .pipe(liveReload());
+}
+
+gulp.task('js', ['clean:js'],function() {
+    return bundle();
+    // return gulp.src(ASSETS_JS_MAIN)
+    //         .pipe(sourcemaps.init())
+    //         .pipe(traceur({
+    //             // modules: 'commonjs'
+    //         }))
+    //         .pipe(concat('bundle.js'))
+    //         .pipe(sourcemaps.write())
+    //         .pipe(gulp.dest(STATIC_JS))
+    //         .pipe(liveReload());
+});
 
 gulp.task('serve', ['watch'], function () {
     connect.server({
@@ -71,7 +151,7 @@ gulp.task('serve', ['watch'], function () {
 });
 
 function makeCleaner(path) {
-    return function(done){
+    return function(done) {
         del([
             path
         ]).then(function(paths) {
@@ -85,10 +165,11 @@ gulp.task('clean:html', makeCleaner(STATIC_DIR +'/**/*.html'));
 gulp.task('clean:css', makeCleaner(STATIC_CSS +'/**/*'));
 gulp.task('clean:img', makeCleaner(STATIC_IMG +'/**/*'));
 gulp.task('clean:fonts', makeCleaner(STATIC_FONTS +'/**/*'));
+gulp.task('clean:js', makeCleaner(STATIC_FONTS +'/**/*'));
 
-gulp.task('clean', ['clean:html','clean:css','clean:img','clean:fonts']);
+gulp.task('clean', ['clean:html','clean:css','clean:img','clean:fonts','clean:js']);
 
-gulp.task('html', ['clean:html'], function(){
+gulp.task('html', ['clean:html'], function() {
     return gulp.src(ASSETS_HTML+'/**/*.html')
             .pipe(debug())
             .pipe(size())
@@ -96,7 +177,7 @@ gulp.task('html', ['clean:html'], function(){
             .pipe(liveReload({port: LIVERELOAD_PORT}));
 });
 
-gulp.task('assets', ['images','fonts']);
+gulp.task('assets', ['images','fonts','js']);
 
 gulp.task('images', ['clean:img'], function() {
     return gulp.src(ASSETS_IMG + '/**/*.*')
@@ -110,14 +191,15 @@ gulp.task('fonts', ['clean:fonts'], function() {
                 .pipe(liveReload({port: LIVERELOAD_PORT}));
 });
 
-gulp.task('sass', ['clean:css'], function(){
+gulp.task('sass', ['clean:css'], function() {
     return gulp.src(ASSETS_SASS_MAIN)
-            .pipe(debug())
+            // .pipe(debug())
             .pipe(plumber({errorHandler: notify.onError('Error: <%= error.message %>')}))
             .on('error', function(err) {
                 gutil.log(gutil.colors.red(`Error (${err.plugin}) - ${err.message}`));
                 this.emit('end');
             })
+            .pipe(sourcemaps.init())
             .pipe(sass())
             .pipe(base64({
                 maxImageSize: 5000,
@@ -129,12 +211,13 @@ gulp.task('sass', ['clean:css'], function(){
             }))
             .pipe(csso())
             .pipe(size())
+            .pipe(sourcemaps.write())
             .pipe(gulp.dest(STATIC_CSS))
             .pipe(liveReload({port: LIVERELOAD_PORT}))
 
 });
 
-gulp.task('watch', function(){
+gulp.task('watch', function() {
     liveReload.listen();
     gulp.watch(ASSETS_SASS + '/**/*.scss',   ['sass']);
     gulp.watch(ASSETS_FONTS + '/**/*',       ['fonts']);
