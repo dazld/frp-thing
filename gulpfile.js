@@ -105,6 +105,7 @@ function bundle () {
             gutil.log(gutil.colors.red(`Error (${err.plugin}) - ${err.message}`));
             this.emit('end');
         })
+        .pipe(plumber({errorHandler: notify.onError('Error: <%= error.message %>')}))
         .pipe(source('bundle.js'))
         .pipe(buffer())
         .pipe(gulpif(IS_PRODUCTION, uglify()))

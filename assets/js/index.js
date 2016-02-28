@@ -1,3 +1,6 @@
+// links
+// http://stackoverflow.com/questions/1028250/what-is-functional-reactive-programming
+
 import Bacon from 'baconjs';
 
 window.Bacon = Bacon;
@@ -44,8 +47,8 @@ function setStickyState(sticky) {
     }
 }
 
-let dimensions = Bacon.fromEvent(window, 'resize').map(getDimensions).toProperty();
-let topScroll = Bacon.fromEvent(window, 'scroll').map(getTopScroll).toProperty();
+let dimensions = Bacon.fromEvent(window, 'resize').map(getDimensions).toProperty(getDimensions());
+let topScroll = Bacon.fromEvent(window, 'scroll').map(getTopScroll).toProperty(getTopScroll());
 
 const calcBoth = dimensions.combine(topScroll, function(dims,pos) {
     // log(dims, pos)
