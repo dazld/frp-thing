@@ -1,5 +1,4 @@
-'use strict';
-
+'use strict'
 const gulp = require('gulp');
 const plumber = require('gulp-plumber');
 // const watch = require('gulp-watch');
@@ -46,7 +45,7 @@ const ASSETS_HTML = join(ASSETS_DIR, 'html');
 const ASSETS_IMG = join(ASSETS_DIR, 'img');
 const ASSETS_FONTS = join(ASSETS_DIR, 'fonts');
 const ASSETS_JS = join(ASSETS_DIR,'js');
-const ASSETS_JS_MAIN = join(ASSETS_JS, 'index.js');
+const ASSETS_JS_MAIN = join(ASSETS_JS, 'invaders.js');
 
 const STATIC_DIR = './static';
 const STATIC_CSS = join(STATIC_DIR, 'css');
@@ -66,7 +65,7 @@ const baseBrowserifyOptions = {
     debug: !IS_PRODUCTION,
     cache: {},
     packageCache: {},
-    plugin: [],
+    plugin: []
     // transform: [envify()]
 };
 
@@ -92,11 +91,6 @@ compiler.transform(envify({
 compiler.on('log', gutil.log);
 compiler.on('error', gutil.log);
 
-compiler.on('update', function() {
-    console.log.apply(console, ['Updated: '].concat([].slice.call(arguments)));
-    bundle();
-});
-
 function bundle () {
     return compiler.bundle()
         // handle errors
@@ -113,6 +107,13 @@ function bundle () {
         .pipe(gulp.dest(STATIC_JS))
         .pipe(liveReload());
 }
+
+
+compiler.on('update', function() {
+    console.log.apply(console, ['Updated: '].concat([].slice.call(arguments)));
+    bundle();
+});
+
 
 gulp.task('js', ['clean:js'],function() {
     return bundle();
@@ -145,7 +146,7 @@ gulp.task('serve', ['watch'], function () {
                 connectLiveReload({
                     port: LIVERELOAD_PORT
                 }),
-                mountFolder(server, STATIC_DIR),
+                mountFolder(server, STATIC_DIR)
             ]
         }
     });
