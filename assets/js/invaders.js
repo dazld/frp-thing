@@ -2,7 +2,6 @@ const log = console.log.bind(console);
 
 import Bacon from 'baconjs';
 import Victor from 'victor';
-import _ from 'lodash';
 
 log('started');
 
@@ -27,7 +26,7 @@ function makeButton(text) {
 }
 
 let {btn,stream} = makeButton('tick');
-let tick = stream;
+let tick = Bacon.interval(16);
 body.appendChild(btn);
 tick.map('tick')
 
@@ -53,28 +52,6 @@ window.clearBoard = clearBoard;
 window.draw = drawInvader;
 
 
-function incX(invader) {
-    let {pos, direction} = invader;
-    pos.x += direction * 3;
-    // pos.addScalarX(direction * 3);
-    if (pos.x >= width) {
-        incY(invader);
-        direction = direction * -1;
-    }
-    // pos.x = pos.x > width ? 0 : pos.x;
-    return {
-        ...invader,
-        pos,
-        direction
-    };
-}
-
-function incY(pos) {
-    pos.y += 3;
-    // pos.y = pos.y > height ? 0 : pos.y;
-    return pos;
-}
-
 const invaderStream = Bacon.repeat(function() {
     // infinite stream of blank invaders
     // this will be scanned by the board function to assemble the wave
@@ -92,7 +69,7 @@ const invaderStream = Bacon.repeat(function() {
 
 function bullet(){}
 
-function wave(){
+function wave() {
     let waveSize = 26;
     let x = 1;
     let y = 1;
@@ -102,7 +79,7 @@ function wave(){
     // the stream ends once we take some :(
     return invaderStream
             .take(waveSize)
-            .reduce([], function(acc,i){
+            .reduce([], function(acc,i) {
 
                 let X = x * GRID_SIZE;
                 x = x + 1;
@@ -121,7 +98,7 @@ function wave(){
                 acc.push(i);
                 return acc;
             })
-            .filter(function(i){
+            .filter(function(i) {
                 // remove dead invaders here
                 return true; // return everything for now
                 // oh nuts, this actually is just ever one value. how to map the dead ones with live?
@@ -130,9 +107,17 @@ function wave(){
 }
 
 
-wave().sampledBy(tick).onValue(function(w){
+wave().sampledBy(tick).map(function(w) {
+    return w.map( i => {
+        i.pos.x += 3 * i.direction;
+        if (i.pos.x >= WIDTH || i.pos.x <= 0) {
+            i.direction = i.direction * - 1;
+        }
+        return i;
+    });
+}).onValue(function(w) {
     clearBoard();
-    w.forEach(function({pos}){
+    w.forEach(function({pos}) {
         drawInvader(pos);
     });
 })
