@@ -10,8 +10,8 @@ const $ = document.querySelector.bind(document);
 const body = $('body');
 const game = $('.game');
 const ctx = game.getContext('2d');
-const width = 512;
-const height = 512;
+const WIDTH = 512;
+const HEIGHT = 512;
 
 // const div = document.createElement.bind(document, 'div');
 // const invader = c => {let a = div()}; a.className = 'invader';a.textContent = c; return a};
@@ -27,7 +27,7 @@ function makeButton(text) {
 }
 
 let {btn,stream} = makeButton('tick');
-let tick = stream; // Bacon.interval(16);
+let tick = stream;
 body.appendChild(btn);
 tick.map('tick')
 
@@ -37,7 +37,7 @@ window.ctx = ctx;
 window.V = Victor;
 
 function clearBoard() {
-    ctx.clearRect(0,0,width, height);
+    ctx.clearRect(0,0,WIDTH, HEIGHT);
 }
 
 function drawInvader(pos) {
@@ -55,8 +55,10 @@ window.draw = drawInvader;
 
 function incX(invader) {
     let {pos, direction} = invader;
-    pos.addScalarX(direction * 3);
+    pos.x += direction * 3;
+    // pos.addScalarX(direction * 3);
     if (pos.x >= width) {
+        incY(invader);
         direction = direction * -1;
     }
     // pos.x = pos.x > width ? 0 : pos.x;
@@ -68,8 +70,8 @@ function incX(invader) {
 }
 
 function incY(pos) {
-    pos.addScalarY(3)
-    pos.y = pos.y > height ? 0 : pos.y;
+    pos.y += 3;
+    // pos.y = pos.y > height ? 0 : pos.y;
     return pos;
 }
 
@@ -78,35 +80,59 @@ const invaderStream = Bacon.repeat(function() {
     // this will be scanned by the board function to assemble the wave
     return Bacon.once({
         idx: 0,
-        pos: new Victor(480,0),
+        pos: new Victor({x:0, y: 0}),
         direction: 1
     });
 });
 
-function makeWave(size) {
-    // get a list of invaders corresponding to the size of the wave
-    // setup wave positions
-    let xOffset = 1;
-    let yOffset = 1;
-    let wave = invaderStream.take(1).map(function(invader) {
-        let {i,pos} = invader;
+// wave is a proprerty
+// wave updates based in filtering from another property which is the dead invaders
+// tick samples the wave to know which invaders to render
+// when wave is empty, make a new one
 
-        if (xOffset * 28 >= width - 28) {
-            yOffset++;
-            xOffset = 1;
-        }
-        pos.addScalarX(xOffset * 28)
-        pos.addScalarY(yOffset * 28);
-        i = ++xOffset;
-        return {
-            ...invader,
-            i,
-            pos,
-        };
-    }).toProperty();
-    return wave;
+function bullet(){}
+
+function wave(){
+    let waveSize = 26;
+    let x = 1;
+    let y = 1;
+    let GRID_SIZE = 60;
+
+
+    // the stream ends once we take some :(
+    return invaderStream
+            .take(waveSize)
+            .reduce([], function(acc,i){
+
+                let X = x * GRID_SIZE;
+                x = x + 1;
+
+                if (X > WIDTH ) {
+                    y++;
+                    x = 1;
+                    X = x * GRID_SIZE;
+                }
+
+                let Y = y * GRID_SIZE;
+
+                let {pos} = i;
+                pos.x = X;
+                pos.y = Y;
+                acc.push(i);
+                return acc;
+            })
+            .filter(function(i){
+                // remove dead invaders here
+                return true; // return everything for now
+                // oh nuts, this actually is just ever one value. how to map the dead ones with live?
+            })
+            .toProperty()
 }
 
-const wave = makeWave(12);
-tick.onValue(clearBoard);
-wave.sampledBy(tick).map(incX).map('.pos').onValue(drawInvader)
+
+wave().sampledBy(tick).onValue(function(w){
+    clearBoard();
+    w.forEach(function({pos}){
+        drawInvader(pos);
+    });
+})
