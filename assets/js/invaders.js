@@ -27,10 +27,15 @@ function makeButton(text) {
 
 let {btn,stream} = makeButton('tick');
 let tick = stream;
-tick = Bacon.interval(32);
+tick = Bacon.interval(64);
 
 body.appendChild(btn);
 tick.map('tick')
+
+
+function emptyArray(size) {
+    return Array.apply(null, {length: size});
+}
 
 // globals
 window.Bacon = Bacon;
@@ -40,8 +45,8 @@ window.V = Victor;
 
 function bindInputs() {
     const keys = Bacon.fromEvent(window, 'keydown').map('.keyCode')
-    const lefts = keys.filter((x)=> x === 37);
-    const rights = keys.filter((x)=> x === 39);
+    const lefts = keys.filter( x => x === 37);
+    const rights = keys.filter( x => x === 39);
 
     return {
         left: lefts,
@@ -65,17 +70,13 @@ function drawInvader(pos) {
     // ctx.stroke()
     return pos;
 }
-window.clearBoard = clearBoard;
-window.draw = drawInvader;
 
 
 function getInvader(i) {
 
     let x = (i % 8) + 1;
     let y = Math.floor(i / 8) + 1;
-
     let pos = [x,y].map(n => n*GRID_SIZE);
-
     let v = new Victor(...pos);
 
     return {
@@ -84,45 +85,8 @@ function getInvader(i) {
         direction: 1,
         dead: false
     };
-
 }
 
-
-function emptyArray(size) {
-    return Array.apply(null, {length: size});
-}
-
-// function invert(n) {
-//     return n * -1;
-// }
-
-//
-// function direction() {
-//     return Bacon.constant(-1)
-//         .take(1)
-//         // .flatMap(direction)
-//         .map(n => n*-1)
-//         .toProperty();
-// }
-
-
-function wave() {
-    console.log('Making new wave!');
-
-    let w = emptyArray(32).map( (_,i) => getInvader(i) );
-
-    return Bacon.once(w)
-                .sampledBy(tick)
-                .filter(function(v) {
-                    // are they all dead?
-                    return v.reduce(function(acc,i) {
-                        return i.dead && acc;
-                    },true);
-                })
-                .take(1)
-                .flatMapLatest(wave)
-                .toProperty(w);
-}
 
 function updatePosition(i) {
     i.pos.x += 3 * i.direction;
@@ -138,7 +102,28 @@ function updatePositions(w) {
     return w.map(updatePosition);
 }
 
-wave().sampledBy(tick).map(updatePositions)
+
+function wave() {
+    console.log('Making new wave!');
+
+    let w = emptyArray(32).map( (_,i) => getInvader(i) );
+
+    return Bacon.once(w)
+                .sampledBy(tick)
+                .map(updatePositions)
+                .filter(function(v) {
+                    // are they all dead?
+                    return v.reduce(function(acc,i) {
+                        return i.dead && acc;
+                    },true);
+                })
+                .take(1)
+                .flatMapLatest(wave)
+                .toProperty(w);
+}
+
+
+wave().sampledBy(tick)
     .onValue(function(w) {
         clearBoard();
         w.forEach(i => !i.dead && drawInvader(i.pos));
