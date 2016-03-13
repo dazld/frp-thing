@@ -26,7 +26,8 @@ function makeButton(text) {
 }
 
 let {btn,stream} = makeButton('tick');
-let tick = Bacon.interval(16);
+let tick = Bacon.interval(32);
+// tick = stream;
 body.appendChild(btn);
 tick.map('tick')
 
@@ -34,6 +35,18 @@ tick.map('tick')
 window.Bacon = Bacon;
 window.ctx = ctx;
 window.V = Victor;
+
+
+function bindInputs() {
+    const keys = Bacon.fromEvent(window, 'keydown').map('.keyCode')
+    const lefts = keys.filter((x)=> x === 37);
+    const rights = keys.filter((x)=> x === 39);
+
+    return {
+        left: lefts,
+        right: rights
+    }
+}
 
 function clearBoard() {
     ctx.clearRect(0,0,WIDTH, HEIGHT);
@@ -43,54 +56,74 @@ function drawInvader(pos) {
     // if (!pos) return;
     let {x,y} = pos;
     ctx.beginPath();
+    ctx.fillStyle = 'rgba(255,255,255,0.1)';
     ctx.rect(x,y,13,7);
     ctx.rect(x+3,y-3,7,7)
     ctx.fill();
+    // ctx.stroke()
     return pos;
 }
 window.clearBoard = clearBoard;
 window.draw = drawInvader;
 
 
-const invaderStream = Bacon.repeat(function() {
-    // infinite stream of blank invaders
-    // this will be scanned by the board function to assemble the wave
-    return Bacon.once({
-        idx: 0,
-        pos: new Victor({x:0, y: 0}),
-        direction: 1
+function getInvaders() {
+    return Bacon.repeat(function() {
+        // infinite stream of blank invaders
+        // this will be scanned by the board function to assemble the wave
+        return Bacon.once({
+            idx: 0,
+            pos: new Victor({x:0, y: 0}),
+            direction: 1
+        });
     });
-});
+
+}
 
 // wave is a proprerty
 // wave updates based in filtering from another property which is the dead invaders
 // tick samples the wave to know which invaders to render
 // when wave is empty, make a new one
 
-function bullet(){}
+function bullet() {
+
+}
+
+function invert(n) {
+    return n * -1;
+}
+
+
+function direction() {
+    return Bacon.constant(-1)
+        .take(1)
+        // .flatMap(direction)
+        .map(n => n*-1)
+        .toProperty();
+}
+
 
 function wave() {
-    let waveSize = 26;
+    let waveSize = 32;
     let x = 1;
     let y = 1;
     let GRID_SIZE = 60;
 
-
     // the stream ends once we take some :(
-    return invaderStream
+    return getInvaders()
             .take(waveSize)
             .reduce([], function(acc,i) {
 
-                let X = x * GRID_SIZE;
-                x = x + 1;
 
-                if (X > WIDTH ) {
+                if (x * GRID_SIZE >= (WIDTH - 30) ) {
                     y++;
                     x = 1;
-                    X = x * GRID_SIZE;
                 }
 
                 let Y = y * GRID_SIZE;
+                let X = x * GRID_SIZE;
+
+                x = x + 1;
 
                 let {pos} = i;
                 pos.x = X;
@@ -110,7 +143,7 @@ function wave() {
 wave().sampledBy(tick).map(function(w) {
     return w.map( i => {
         i.pos.x += 3 * i.direction;
-        if (i.pos.x >= WIDTH || i.pos.x <= 0) {
+        if (i.pos.x >= WIDTH - 30 || i.pos.x <= 30) {
             i.direction = i.direction * - 1;
         }
         return i;
